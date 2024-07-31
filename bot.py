@@ -102,7 +102,7 @@ class ExcelAPI:
 class IngramMicroBot(ActivityHandler):
     def __init__(self):
         super().__init__()
-        self.openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        self.openai_client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
         self.client_id = os.environ.get("INGRAM_CLIENT_ID")
         self.client_secret = os.environ.get("INGRAM_CLIENT_SECRET")
         self.access_token = None
@@ -157,7 +157,7 @@ class IngramMicroBot(ActivityHandler):
             )
 
             response = self.openai_client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4",
                 messages=[
                     {"role": "system", "content": system_message},
                     {"role": "user", "content": question}

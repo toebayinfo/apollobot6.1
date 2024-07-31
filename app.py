@@ -1,7 +1,6 @@
 from quart import Quart, request, Response
 from botbuilder.core import BotFrameworkAdapterSettings, BotFrameworkAdapter
 from botbuilder.schema import Activity
-import asyncio
 from bot import IngramMicroBot
 import logging
 import os
@@ -14,10 +13,13 @@ logger = logging.getLogger(__name__)
 
 app = Quart(__name__)
 
-bot_settings = BotFrameworkAdapterSettings("", "")
+# Use environment variables for App ID and Password
+APP_ID = os.environ.get("MicrosoftAppId", "")
+APP_PASSWORD = os.environ.get("MicrosoftAppPassword", "")
+
+bot_settings = BotFrameworkAdapterSettings(APP_ID, APP_PASSWORD)
 bot_adapter = BotFrameworkAdapter(bot_settings)
 bot = IngramMicroBot()
-asyncio.run(bot.load_excel_data())
 
 def signal_handler():
     logger.info("Received shutdown signal, closing application...")
@@ -46,3 +48,6 @@ async def messages():
     except Exception as e:
         logger.error(f"Error processing activity: {str(e)}")
         return Response(status=500)
+
+if __name__ == "__main__":
+    app.run(debug=True, host='0.0.0.0', port=int(os.environ.get("PORT", 8000)))
