@@ -50,6 +50,8 @@ async def messages():
 #if __name__ == "__main__":
 #    debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
 #    app.run(debug=debug_mode, port=3978)
+#if __name__ == "__main__":
+#    port = int(os.environ.get("PORT", 8000))
+#    app.run(host='0.0.0.0', port=port)
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8000))
-    app.run(host='0.0.0.0', port=port)
+    hypercorn.run(app, bind="0.0.0.0:8000")
