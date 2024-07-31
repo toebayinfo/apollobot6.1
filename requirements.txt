@@ -87,7 +87,6 @@ python-dotenv==1.0.1
 python-Levenshtein==0.25.1
 pytz==2024.1
 Quart==0.19.6
-rapidfuzz==2.13.4
 recognizers-text==1.0.2a2
 recognizers-text-choice==1.0.2a2
 recognizers-text-date-time==1.0.2a2
