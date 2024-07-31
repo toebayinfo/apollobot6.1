@@ -1,4 +1,3 @@
 #!/bin/bash
-
-# Start Gunicorn
-exec gunicorn --bind 0.0.0.0:8000 --config gunicorn.conf.py app:app
+cd /home/site/wwwroot
+exec gunicorn -c gunicorn.conf.py app:app
