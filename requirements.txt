@@ -10,5 +10,6 @@ aiohttp==3.10.0
 pydantic==2.8.2
 uuid==1.30
 gunicorn==22.0.0
-hypercorn==0.17.3
+uvicorn==0.27.1
 xi.sdk.resellers==1.1.0
+azure-storage-blob==12.19.0
