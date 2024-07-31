@@ -14,9 +14,9 @@ blis==0.7.11
 botbuilder==0.0.1
 aiohttp>=3.9.3,<4.0.0
 aiohttp-cors>=0.7.0,<0.8.0
-botbuilder-ai>=4.15.0,<4.16.0botbuilder-core>=4.15.0,<4.16.0
-botbuilder-schema>=4.15.0,<4.16.0
 botbuilder-ai>=4.15.0,<4.16.0
+botbuilder-core>=4.15.0,<4.16.0
+botbuilder-schema>=4.15.0,<4.16.0
 botbuilder-dialogs>=4.15.0,<4.16.0
 botbuilder-integration-aiohttp>=4.15.0,<4.16.0
 botframework-connector>=4.15.0,<4.16.0
