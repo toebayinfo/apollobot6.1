@@ -11,3 +11,4 @@ asyncio==3.4.3
 pydantic==2.8.2
 uuid==1.30
 git+https://github.com/ingrammicro-xvantage/xi-sdk-resellers-python.git@6d1e7ea944babbcf085fffe9f9046458275cb0c9
+gunicorn==22.0.0

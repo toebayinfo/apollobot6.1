@@ -47,6 +47,9 @@ async def messages():
         logger.error(f"Error processing activity: {str(e)}")
         return Response(status=500)
 
+#if __name__ == "__main__":
+#    debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
+#    app.run(debug=debug_mode, port=3978)
 if __name__ == "__main__":
-    debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
-    app.run(debug=debug_mode, port=3978)
+    port = int(os.environ.get("PORT", 3978))
+    app.run(host='0.0.0.0', port=port)
