@@ -7,7 +7,7 @@ botbuilder-dialogs==4.16.1
 botbuilder-ai==4.16.1
 botbuilder-applicationinsights==4.16.1
 botbuilder-integration-applicationinsights-aiohttp==4.16.1
-azure-cognitiveservices-language-luis==0.7.0
+azure-cognitiveservices-language-luis==0.2.0
 azure-identity==1.17.1
 msgraph-core==1.1.2
 msrest==0.7.1
