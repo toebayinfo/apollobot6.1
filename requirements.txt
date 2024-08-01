@@ -1,5 +1,5 @@
 python-dotenv==1.0.1
-flask==3.0.3
+flask==2.2.5
 botbuilder-core==4.16.1
 botbuilder-schema==4.16.1
 botframework-connector==4.16.1
