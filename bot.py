@@ -7,6 +7,8 @@ import asyncio
 import uuid
 from dotenv import load_dotenv
 import os
+from msgraph.core import GraphClient
+from azure.identity import ClientSecretCredential
 from xi.sdk.resellers.rest import ApiException
 from xi.sdk.resellers.api.accesstoken_api import AccesstokenApi
 from xi.sdk.resellers.api.product_catalog_api import ProductCatalogApi
@@ -15,7 +17,6 @@ from xi.sdk.resellers.models.price_and_availability_request_products_inner impor
 from botbuilder.core import TurnContext, ActivityHandler
 from botbuilder.schema import ChannelAccount
 from pprint import pprint
-from office365.graph_client import GraphClient
 import pandas as pd
 from io import BytesIO
 from config import CONFIG
@@ -41,7 +42,8 @@ class ExcelAPI:
             raise Exception("Failed to access Microsoft Graph. Please check your credentials and permissions.")
 
         try:
-            client = GraphClient.with_client_secret(self.tenant_id, self.client_id, self.client_secret)
+            credential = ClientSecretCredential(self.tenant_id, self.client_id, self.client_secret)
+            client = GraphClient(credential=credential)
             site = client.sites.get_by_url(self.site_url).get().execute_query()
             drives = site.drives.get().execute_query()
 
