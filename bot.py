@@ -44,15 +44,15 @@ class ExcelAPI:
         try:
             credential = ClientSecretCredential(self.tenant_id, self.client_id, self.client_secret)
             client = GraphClient(credential=credential)
-            site = client.sites.get_by_url(self.site_url).get().execute_query()
-            drives = site.drives.get().execute_query()
+            site = await client.sites.get_by_url(self.site_url).get().execute_query_async()
+            drives = await site.drives.get().execute_query_async()
 
             if not drives:
                 raise Exception("No drives found in the site")
 
             drive = drives[0]
-            file = drive.root.get_by_path(self.file_path).get().execute_query()
-            content = file.get_content().execute_query()
+            file = await drive.root.get_by_path(self.file_path).get().execute_query_async()
+            content = await file.get_content().execute_query_async()
 
             if not isinstance(content, bytes):
                 if hasattr(content, 'value'):
@@ -68,7 +68,7 @@ class ExcelAPI:
     async def test_graph_access(self):
         try:
             client = GraphClient.with_client_secret(self.tenant_id, self.client_id, self.client_secret)
-            site = client.sites.get_by_url(self.site_url).get().execute_query()
+            site = await client.sites.get_by_url(self.site_url).get().execute_query_async()
             return True
         except Exception as e:
             logger.error(f"Error accessing Graph API: {str(e)}")
@@ -147,7 +147,6 @@ class IngramMicroBot(ActivityHandler):
             await self.get_access_token()
         return self.access_token
 
-
     async def handle_generic_question(self, turn_context: TurnContext, question: str) -> bool:
         logger.debug(f"Attempting to handle generic question: {question}")
         try:
@@ -158,7 +157,7 @@ class IngramMicroBot(ActivityHandler):
                 "Make sure to include the most up-to-date and accurate information, particularly for product releases and specifications."
             )
 
-            response = self.openai_client.chat.completions.create(
+            response = self.openai_client.chat_completions.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": system_message},
