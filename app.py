@@ -1,64 +1,65 @@
-from flask import Flask, request, Response
-from botbuilder.core import BotFrameworkAdapterSettings, TurnContext
-from botbuilder.schema import Activity
-from botbuilder.integration.aiohttp import CloudAdapter, ConfigurationBotFrameworkAuthentication
+import sys
+import traceback
+from datetime import datetime
+
+from aiohttp import web
+from aiohttp.web import Request, Response, json_response
+from botbuilder.core import (BotFrameworkAdapter, BotFrameworkAdapterSettings, TurnContext)
+from botbuilder.core.integration import aiohttp_error_middleware
+from botbuilder.schema import Activity, ActivityTypes
+
 from bot import IngramMicroBot
-import logging
-import os
-import asyncio
+from config import DefaultConfig
 
-# Set up logging
-log_level = os.environ.get('LOG_LEVEL', 'DEBUG').upper()
-logging.basicConfig(level=log_level)
-logger = logging.getLogger(__name__)
+CONFIG = DefaultConfig()
 
-app = Flask(__name__)
+# Create adapter.
+SETTINGS = BotFrameworkAdapterSettings(CONFIG.APP_ID, CONFIG.APP_PASSWORD)
+ADAPTER = BotFrameworkAdapter(SETTINGS)
 
-# Use environment variables for App ID and Password
-APP_ID = os.environ.get("MicrosoftAppId", "")
-APP_PASSWORD = os.environ.get("MicrosoftAppPassword", "")
+# Catch-all for errors.
+async def on_error(context: TurnContext, error: Exception):
+    print(f"\n [on_turn_error] unhandled error: {error}", file=sys.stderr)
+    traceback.print_exc()
+    await context.send_activity("The bot encountered an error or bug.")
+    await context.send_activity("To continue to run this bot, please fix the bot source code.")
+    if context.activity.channel_id == "emulator":
+        trace_activity = Activity(
+            label="TurnError",
+            name="on_turn_error Trace",
+            timestamp=datetime.utcnow(),
+            type=ActivityTypes.trace,
+            value=f"{error}",
+            value_type="https://www.botframework.com/schemas/error",
+        )
+        await context.send_activity(trace_activity)
 
-logger.info(f"App ID: {APP_ID}, App Password: {'Set' if APP_PASSWORD else 'Not Set'}")
+ADAPTER.on_turn_error = on_error
 
-# Set up CloudAdapter
-SETTINGS = BotFrameworkAdapterSettings(APP_ID, APP_PASSWORD)
-AUTHENTICATION = ConfigurationBotFrameworkAuthentication(SETTINGS)
-ADAPTER = CloudAdapter(AUTHENTICATION)
+# Create the Bot
+BOT = IngramMicroBot()
 
-# Create bot instance
-bot = IngramMicroBot()
-
-@app.route("/api/messages", methods=["POST"])
-def messages():
-    if "application/json" in request.headers.get("Content-Type", ""):
-        body = request.json
-        logger.debug(f"Received body: {body}")
+# Listen for incoming requests on /api/messages
+async def messages(req: Request) -> Response:
+    if "application/json" in req.headers.get("Content-Type", ""):
+        body = await req.json()
     else:
         return Response(status=415)
+    activity = Activity().deserialize(body)
+    auth_header = req.headers.get("Authorization", "")
+    response = await ADAPTER.process_activity(activity, auth_header, BOT.on_turn)
+    if response:
+        return json_response(data=response.body, status=response.status)
+    return Response(status=201)
 
-    async def call_bot(inner_adapter, inner_req, inner_res):
-        activity = Activity().deserialize(inner_req.json)
-        context = TurnContext(inner_adapter, activity)
-        await bot.on_turn(context)
-
-    try:
-        logger.debug("Processing activity")
-        task = asyncio.ensure_future(ADAPTER.process(request, Response, call_bot))
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(task)
-        logger.debug("Activity processed")
-        return Response(status=200)
-    except Exception as e:
-        logger.error(f"Error processing activity: {str(e)}", exc_info=True)
-        return Response(status=500)
-
-@app.route("/", methods=["GET"])
-def index():
-    return "Your bot is ready!"
+def init_func(argv):
+    APP = web.Application(middlewares=[aiohttp_error_middleware])
+    APP.router.add_post("/api/messages", messages)
+    return APP
 
 if __name__ == "__main__":
-    is_production = os.environ.get('WEBSITE_HOSTNAME') is not None
-    if is_production:
-        app.run()
-    else:
-        app.run(debug=True, host='0.0.0.0', port=int(os.environ.get("PORT", 8000)))
+    APP = init_func(None)
+    try:
+        web.run_app(APP, host="0.0.0.0", port=CONFIG.PORT)
+    except Exception as error:
+        raise error

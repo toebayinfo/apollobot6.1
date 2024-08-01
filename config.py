@@ -15,3 +15,4 @@ class CONFIG:
     INGRAM_CLIENT_SECRET = os.getenv("INGRAM_CLIENT_SECRET")
     MicrosoftAppId = os.getenv("MicrosoftAppId")
     MicrosoftAppPassword = os.getenv("MicrosoftAppPassword")
+    PORT = int(os.environ.get("PORT", 8000))
