@@ -1,53 +1,69 @@
+import os
+import json
+import logging
 from quart import Quart, request, Response
 from botbuilder.core import BotFrameworkAdapterSettings, BotFrameworkAdapter
 from botbuilder.schema import Activity
+from dotenv import load_dotenv
 from bot import IngramMicroBot
-import logging
-import os
-import signal
+
+# Load environment variables
+load_dotenv()
 
 # Set up logging
-log_level = os.environ.get('LOG_LEVEL', 'INFO').upper()
-logging.basicConfig(level=log_level)
+log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
+logging.basicConfig(level=log_level, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-app = Quart(__name__)
 
 # Use environment variables for App ID and Password
-APP_ID = os.environ.get("MicrosoftAppId", "")
-APP_PASSWORD = os.environ.get("MicrosoftAppPassword", "")
+APP_ID = os.getenv("MicrosoftAppId", "")
+APP_PASSWORD = os.getenv("MicrosoftAppPassword", "")
 
 bot_settings = BotFrameworkAdapterSettings(APP_ID, APP_PASSWORD)
 bot_adapter = BotFrameworkAdapter(bot_settings)
 bot = IngramMicroBot()
 
-def signal_handler():
-    logger.info("Received shutdown signal, closing application...")
-
-# Add any cleanup code here (e.g., closing database connections)
-app.signal_handler = signal_handler
+app = Quart(__name__)
 
 @app.route("/api/messages", methods=["POST"])
 async def messages():
-    if "application/json" in request.headers["Content-Type"]:
-        body = await request.get_json()
+    headers = {"Access-Control-Allow-Origin": "*"}
+    if request.content_type == "application/json":
+        try:
+            body = await request.get_json()
+            logger.info(f"Received request body: {json.dumps(body, indent=2)}")
+        except Exception as e:
+            logger.error(f"Error parsing request body: {e}")
+            return Response(response=f"Error parsing request body: {e}", status=400, headers=headers)
     else:
-        return Response(status=415)
-    
-    activity = Activity().deserialize(body)
+        logger.error("Unsupported Media Type")
+        return Response(status=415, headers=headers)
+
+    try:
+        activity = Activity().deserialize(body)
+        logger.info(f"Deserialized activity: {activity}")
+    except Exception as e:
+        logger.error(f"Failed to deserialize activity: {e}")
+        return Response(response=f"Failed to deserialize activity: {e}", status=400, headers=headers)
+
     auth_header = request.headers.get("Authorization", "")
 
     async def turn_call(turn_context):
         await bot.on_turn(turn_context)
 
     try:
-        logger.debug("Processing activity")
         await bot_adapter.process_activity(activity, auth_header, turn_call)
-        logger.debug("Activity processed")
-        return Response(status=201)
+        return Response(status=201, headers=headers)
     except Exception as e:
-        logger.error(f"Error processing activity: {str(e)}")
-        return Response(status=500)
+        logger.error(f"Error processing activity: {e}")
+        return Response(response=str(e), status=500, headers=headers)
 
-# Remove the app.run() call for Hypercorn
-# if __name__ == "__main__":
-#     app.run(debug=True, host='0.0.0.0', port=int(os.environ.get("PORT", 8000)))
+@app.route("/health", methods=["GET"])
+async def health_check():
+    return Response(status=200)
+
+def init_func(argv):
+    return app
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
