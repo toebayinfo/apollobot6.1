@@ -23,47 +23,49 @@ bot_settings = BotFrameworkAdapterSettings(APP_ID, APP_PASSWORD)
 bot_adapter = BotFrameworkAdapter(bot_settings)
 bot = IngramMicroBot()
 
-app = Quart(__name__)
+def create_app():
+    app = Quart(__name__)
 
-@app.route("/api/messages", methods=["POST"])
-async def messages():
-    headers = {"Access-Control-Allow-Origin": "*"}
-    if request.content_type == "application/json":
+    @app.route("/api/messages", methods=["POST"])
+    async def messages():
+        headers = {"Access-Control-Allow-Origin": "*"}
+        if request.content_type == "application/json":
+            try:
+                body = await request.get_json()
+                logger.info(f"Received request body: {json.dumps(body, indent=2)}")
+            except Exception as e:
+                logger.error(f"Error parsing request body: {e}")
+                return Response(response=f"Error parsing request body: {e}", status=400, headers=headers)
+        else:
+            logger.error("Unsupported Media Type")
+            return Response(status=415, headers=headers)
+
         try:
-            body = await request.get_json()
-            logger.info(f"Received request body: {json.dumps(body, indent=2)}")
+            activity = Activity().deserialize(body)
+            logger.info(f"Deserialized activity: {activity}")
         except Exception as e:
-            logger.error(f"Error parsing request body: {e}")
-            return Response(response=f"Error parsing request body: {e}", status=400, headers=headers)
-    else:
-        logger.error("Unsupported Media Type")
-        return Response(status=415, headers=headers)
+            logger.error(f"Failed to deserialize activity: {e}")
+            return Response(response=f"Failed to deserialize activity: {e}", status=400, headers=headers)
 
-    try:
-        activity = Activity().deserialize(body)
-        logger.info(f"Deserialized activity: {activity}")
-    except Exception as e:
-        logger.error(f"Failed to deserialize activity: {e}")
-        return Response(response=f"Failed to deserialize activity: {e}", status=400, headers=headers)
+        auth_header = request.headers.get("Authorization", "")
 
-    auth_header = request.headers.get("Authorization", "")
+        async def turn_call(turn_context):
+            await bot.on_turn(turn_context)
 
-    async def turn_call(turn_context):
-        await bot.on_turn(turn_context)
+        try:
+            await bot_adapter.process_activity(activity, auth_header, turn_call)
+            return Response(status=201, headers=headers)
+        except Exception as e:
+            logger.error(f"Error processing activity: {e}")
+            return Response(response=str(e), status=500, headers=headers)
 
-    try:
-        await bot_adapter.process_activity(activity, auth_header, turn_call)
-        return Response(status=201, headers=headers)
-    except Exception as e:
-        logger.error(f"Error processing activity: {e}")
-        return Response(response=str(e), status=500, headers=headers)
+    @app.route("/health", methods=["GET"])
+    async def health_check():
+        return Response(status=200)
 
-@app.route("/health", methods=["GET"])
-async def health_check():
-    return Response(status=200)
-
-def init_func(argv):
     return app
+
+app = create_app()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))

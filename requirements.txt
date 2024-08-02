@@ -61,7 +61,7 @@ idna==3.7
 importlib_metadata==8.0.0
 isodate==0.6.1
 itsdangerous==2.2.0
-Jinja2==3.1.4
+jinja2>=3.1.4
 joblib==1.4.2
 jsonpickle==1.4.2
 langcodes==3.4.0
@@ -108,7 +108,7 @@ python-dateutil==2.9.0.post0
 python-dotenv==1.0.1
 python-Levenshtein==0.25.1
 pytz==2024.1
-Quart==0.16.1
+Quart==0.19.6
 rapidfuzz==3.9.5
 recognizers-text==1.0.2a2
 recognizers-text-choice==1.0.2a2
