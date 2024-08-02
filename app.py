@@ -52,6 +52,9 @@ def create_app():
             return Response(response=f"Failed to deserialize activity: {e}", status=400, headers=headers)
 
         auth_header = request.headers.get("Authorization", "")
+        if not auth_header:
+            logger.error("Authorization header is missing")
+            return Response(response="Unauthorized: Authorization header is missing", status=401, headers=headers)
 
         async def turn_call(turn_context):
             await bot.on_turn(turn_context)
