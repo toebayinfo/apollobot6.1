@@ -13,6 +13,9 @@ class CONFIG:
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
     INGRAM_CLIENT_ID = os.getenv("INGRAM_CLIENT_ID")
     INGRAM_CLIENT_SECRET = os.getenv("INGRAM_CLIENT_SECRET")
-    MicrosoftAppId = os.getenv("MicrosoftAppId")
-    MicrosoftAppPassword = os.getenv("MicrosoftAppPassword")
-    PORT = int(os.environ.get("PORT", 8000))
+
+    MICROSOFT_APP_ID = os.getenv("MicrosoftAppId")
+    MICROSOFT_APP_PASSWORD = os.getenv("MicrosoftAppPassword")
+    
+    WEBSITES_PORT = os.getenv("WEBSITES_PORT", 8000)  # Default to 8000 if not set
+    PORT = os.getenv("PORT", 8000)  # Default to 8000 if not set

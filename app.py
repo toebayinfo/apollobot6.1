@@ -1,65 +1,53 @@
-import sys
-import traceback
-from datetime import datetime
-
-from aiohttp import web
-from aiohttp.web import Request, Response, json_response
-from botbuilder.core import (BotFrameworkAdapter, BotFrameworkAdapterSettings, TurnContext)
-from botbuilder.core.integration import aiohttp_error_middleware
-from botbuilder.schema import Activity, ActivityTypes
-
+from quart import Quart, request, Response
+from botbuilder.core import BotFrameworkAdapterSettings, BotFrameworkAdapter
+from botbuilder.schema import Activity
 from bot import IngramMicroBot
-from config import DefaultConfig
+import logging
+import os
+import signal
 
-CONFIG = DefaultConfig()
+# Set up logging
+log_level = os.environ.get('LOG_LEVEL', 'INFO').upper()
+logging.basicConfig(level=log_level)
+logger = logging.getLogger(__name__)
+app = Quart(__name__)
 
-# Create adapter.
-SETTINGS = BotFrameworkAdapterSettings(CONFIG.APP_ID, CONFIG.APP_PASSWORD)
-ADAPTER = BotFrameworkAdapter(SETTINGS)
+# Use environment variables for App ID and Password
+APP_ID = os.environ.get("MicrosoftAppId", "")
+APP_PASSWORD = os.environ.get("MicrosoftAppPassword", "")
 
-# Catch-all for errors.
-async def on_error(context: TurnContext, error: Exception):
-    print(f"\n [on_turn_error] unhandled error: {error}", file=sys.stderr)
-    traceback.print_exc()
-    await context.send_activity("The bot encountered an error or bug.")
-    await context.send_activity("To continue to run this bot, please fix the bot source code.")
-    if context.activity.channel_id == "emulator":
-        trace_activity = Activity(
-            label="TurnError",
-            name="on_turn_error Trace",
-            timestamp=datetime.utcnow(),
-            type=ActivityTypes.trace,
-            value=f"{error}",
-            value_type="https://www.botframework.com/schemas/error",
-        )
-        await context.send_activity(trace_activity)
+bot_settings = BotFrameworkAdapterSettings(APP_ID, APP_PASSWORD)
+bot_adapter = BotFrameworkAdapter(bot_settings)
+bot = IngramMicroBot()
 
-ADAPTER.on_turn_error = on_error
+def signal_handler():
+    logger.info("Received shutdown signal, closing application...")
 
-# Create the Bot
-BOT = IngramMicroBot()
+# Add any cleanup code here (e.g., closing database connections)
+app.signal_handler = signal_handler
 
-# Listen for incoming requests on /api/messages
-async def messages(req: Request) -> Response:
-    if "application/json" in req.headers.get("Content-Type", ""):
-        body = await req.json()
+@app.route("/api/messages", methods=["POST"])
+async def messages():
+    if "application/json" in request.headers["Content-Type"]:
+        body = await request.get_json()
     else:
         return Response(status=415)
+    
     activity = Activity().deserialize(body)
-    auth_header = req.headers.get("Authorization", "")
-    response = await ADAPTER.process_activity(activity, auth_header, BOT.on_turn)
-    if response:
-        return json_response(data=response.body, status=response.status)
-    return Response(status=201)
+    auth_header = request.headers.get("Authorization", "")
 
-def init_func(argv):
-    APP = web.Application(middlewares=[aiohttp_error_middleware])
-    APP.router.add_post("/api/messages", messages)
-    return APP
+    async def turn_call(turn_context):
+        await bot.on_turn(turn_context)
 
-if __name__ == "__main__":
-    APP = init_func(None)
     try:
-        web.run_app(APP, host="0.0.0.0", port=CONFIG.PORT)
-    except Exception as error:
-        raise error
+        logger.debug("Processing activity")
+        await bot_adapter.process_activity(activity, auth_header, turn_call)
+        logger.debug("Activity processed")
+        return Response(status=201)
+    except Exception as e:
+        logger.error(f"Error processing activity: {str(e)}")
+        return Response(status=500)
+
+# Remove the app.run() call for Hypercorn
+# if __name__ == "__main__":
+#     app.run(debug=True, host='0.0.0.0', port=int(os.environ.get("PORT", 8000)))

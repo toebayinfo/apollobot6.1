@@ -7,8 +7,6 @@ import asyncio
 import uuid
 from dotenv import load_dotenv
 import os
-from msgraph.core import GraphClient
-from azure.identity import ClientSecretCredential
 from xi.sdk.resellers.rest import ApiException
 from xi.sdk.resellers.api.accesstoken_api import AccesstokenApi
 from xi.sdk.resellers.api.product_catalog_api import ProductCatalogApi
@@ -17,6 +15,7 @@ from xi.sdk.resellers.models.price_and_availability_request_products_inner impor
 from botbuilder.core import TurnContext, ActivityHandler
 from botbuilder.schema import ChannelAccount
 from pprint import pprint
+from office365.graph_client import GraphClient
 import pandas as pd
 from io import BytesIO
 from config import CONFIG
@@ -42,17 +41,16 @@ class ExcelAPI:
             raise Exception("Failed to access Microsoft Graph. Please check your credentials and permissions.")
 
         try:
-            credential = ClientSecretCredential(self.tenant_id, self.client_id, self.client_secret)
-            client = GraphClient(credential=credential)
-            site = await client.sites.get_by_url(self.site_url).get().execute_query_async()
-            drives = await site.drives.get().execute_query_async()
+            client = GraphClient.with_client_secret(self.tenant_id, self.client_id, self.client_secret)
+            site = client.sites.get_by_url(self.site_url).get().execute_query()
+            drives = site.drives.get().execute_query()
 
             if not drives:
                 raise Exception("No drives found in the site")
 
             drive = drives[0]
-            file = await drive.root.get_by_path(self.file_path).get().execute_query_async()
-            content = await file.get_content().execute_query_async()
+            file = drive.root.get_by_path(self.file_path).get().execute_query()
+            content = file.get_content().execute_query()
 
             if not isinstance(content, bytes):
                 if hasattr(content, 'value'):
@@ -68,7 +66,7 @@ class ExcelAPI:
     async def test_graph_access(self):
         try:
             client = GraphClient.with_client_secret(self.tenant_id, self.client_id, self.client_secret)
-            site = await client.sites.get_by_url(self.site_url).get().execute_query_async()
+            site = client.sites.get_by_url(self.site_url).get().execute_query()
             return True
         except Exception as e:
             logger.error(f"Error accessing Graph API: {str(e)}")
@@ -147,6 +145,7 @@ class IngramMicroBot(ActivityHandler):
             await self.get_access_token()
         return self.access_token
 
+
     async def handle_generic_question(self, turn_context: TurnContext, question: str) -> bool:
         logger.debug(f"Attempting to handle generic question: {question}")
         try:
@@ -157,7 +156,7 @@ class IngramMicroBot(ActivityHandler):
                 "Make sure to include the most up-to-date and accurate information, particularly for product releases and specifications."
             )
 
-            response = self.openai_client.chat_completions.create(
+            response = self.openai_client.chat.completions.create(
                 model="gpt-4",
                 messages=[
                     {"role": "system", "content": system_message},
