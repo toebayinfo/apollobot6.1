@@ -5,8 +5,7 @@ pip install -r requirements.txt --no-cache-dir
 
 pip install --upgrade pip
 
-# Any other deployment steps can go here, for example:
-# python manage.py migrate
-# python manage.py collectstatic --noinput
+# Start the application
+hypercorn app:app --bind 0.0.0.0:8000
 
 echo "Deployment completed."
