@@ -29,16 +29,16 @@ def create_app():
     @app.route("/api/messages", methods=["POST"])
     async def messages():
         headers = {"Access-Control-Allow-Origin": "*"}
-        if request.content_type == "application/json":
-            try:
-                body = await request.get_json()
-                logger.info(f"Received request body: {json.dumps(body, indent=2)}")
-            except Exception as e:
-                logger.error(f"Error parsing request body: {e}")
-                return Response(response=f"Error parsing request body: {e}", status=400, headers=headers)
-        else:
-            logger.error("Unsupported Media Type")
-            return Response(status=415, headers=headers)
+        if request.content_type != "application/json":
+            logger.error("Unsupported Media Type: Content-Type must be application/json")
+            return Response(response="Unsupported Media Type: Content-Type must be application/json", status=415, headers=headers)
+
+        try:
+            body = await request.get_json()
+            logger.info(f"Received request body: {json.dumps(body, indent=2)}")
+        except Exception as e:
+            logger.error(f"Error parsing request body: {e}")
+            return Response(response=f"Error parsing request body: {e}", status=400, headers=headers)
 
         try:
             activity = Activity().deserialize(body)
