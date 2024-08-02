@@ -26,6 +26,10 @@ bot = IngramMicroBot()
 def create_app():
     app = Quart(__name__)
 
+    @app.route("/", methods=["GET"])
+    async def root():
+        return Response(response="Welcome to IngramMicroBot", status=200)
+
     @app.route("/api/messages", methods=["POST"])
     async def messages():
         headers = {"Access-Control-Allow-Origin": "*"}
@@ -69,4 +73,3 @@ app = create_app()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8000)))
-
