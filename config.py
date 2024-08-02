@@ -19,5 +19,4 @@ class CONFIG:
     
     WEBSITES_PORT = os.getenv("WEBSITES_PORT", 8000)  # Default to 8000 if not set
     PORT = os.getenv("PORT", 8000)  # Default to 8000 if not set
-    
-    
+
