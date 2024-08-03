@@ -12,7 +12,7 @@ from xi.sdk.resellers.api.accesstoken_api import AccesstokenApi
 from xi.sdk.resellers.api.product_catalog_api import ProductCatalogApi
 from xi.sdk.resellers.models.price_and_availability_request import PriceAndAvailabilityRequest
 from xi.sdk.resellers.models.price_and_availability_request_products_inner import PriceAndAvailabilityRequestProductsInner
-from botbuilder.core import ActivityHandler, TurnContext, ConversationState
+from botbuilder.core import TurnContext, ActivityHandler
 from botbuilder.schema import ChannelAccount
 from pprint import pprint
 from office365.graph_client import GraphClient
@@ -101,9 +101,8 @@ class ExcelAPI:
         return "\n\n".join(formatted_results)  # Join products with double newline
 
 class IngramMicroBot(ActivityHandler):
-    def __init__(self, conversation_state: ConversationState):
+    def __init__(self):
         super().__init__()
-        self.conversation_state = conversation_state
         self.openai_client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
         self.client_id = os.environ.get("INGRAM_CLIENT_ID")
         self.client_secret = os.environ.get("INGRAM_CLIENT_SECRET")
@@ -114,10 +113,6 @@ class IngramMicroBot(ActivityHandler):
         self.only_available = False
         self.excel_api = ExcelAPI()
         self.excel_data = None
-
-    async def on_turn(self, turn_context: TurnContext):
-        await super().on_turn(turn_context)
-        await self.conversation_state.save_changes(turn_context)
 
     async def load_excel_data(self):
         try:
@@ -163,17 +158,18 @@ class IngramMicroBot(ActivityHandler):
             )
 
             response = self.openai_client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4",
                 messages=[
                     {"role": "system", "content": system_message},
                     {"role": "user", "content": question}
                 ],
-                max_tokens=300
+                max_tokens=300  # Adjust this value as needed for response length
             )
             answer = response.choices[0].message.content
             
             logger.debug(f"OpenAI response received: {answer}")
             
+            # Check if the response is meaningful
             if "I don't know" in answer.lower() or "I'm not sure" in answer.lower():
                 logger.debug("OpenAI response was not meaningful")
                 return False
@@ -182,74 +178,73 @@ class IngramMicroBot(ActivityHandler):
             return True
         except Exception as e:
             logger.error(f"Error calling OpenAI API: {str(e)}")
-            await turn_context.send_activity(f"An error occurred while processing your question. Please try again later.")
+            await turn_context.send_activity(f"An error occurred while processing your question: {str(e)}")
             return False
-        
+
     async def on_message_activity(self, turn_context: TurnContext):
-        try:
-            message_text = turn_context.activity.text
-            logger.debug(f"Received message: {message_text}")
+        message_text = turn_context.activity.text
+        logger.debug(f"Received message: {message_text}")
 
-            if message_text.lower().startswith("excel search for "):
-                search_term = message_text[17:].strip()
-                handled = await self.search_excel_products(turn_context, search_term)
-                if handled:
-                    return  # Exit the method if the Excel search was handled
+        if message_text.lower().startswith("excel search for "):
+            search_term = message_text[17:].strip()
+            handled = await self.search_excel_products(turn_context, search_term)
+            if handled:
+                return  # Exit the method if the Excel search was handled
 
-            if message_text.lower().startswith("price and availability for "):
-                part_number = message_text[26:].strip()
-                await self.get_price_and_availability(turn_context, part_number)
-            
-            elif message_text.lower().startswith("search for available "):
-                self.search_term = message_text[21:]
-                self.page_number = 1
-                self.only_available = True
-                await self.search_product(turn_context, self.search_term, self.page_number, only_available=True)
-            
-            elif message_text.lower().startswith("search for product "):
-                self.search_term = message_text[19:]
-                self.page_number = 1
-                self.only_available = False
-                await self.search_product(turn_context, self.search_term, self.page_number, only_available=False)
-            
-            elif message_text.lower() == "next":
-                if self.search_term:
-                    self.page_number += 1
-                    await turn_context.send_activity(f"Loading page {self.page_number} for: {self.search_term}")
+        if message_text.lower().startswith("price and availability for "):
+            part_number = message_text[26:].strip()
+            await self.get_price_and_availability(turn_context, part_number)
+        
+        elif message_text.lower().startswith("search for available "):
+            self.search_term = message_text[21:]
+            self.page_number = 1
+            self.only_available = True
+            await self.search_product(turn_context, self.search_term, self.page_number, only_available=True)
+        
+        elif message_text.lower().startswith("search for product "):
+            self.search_term = message_text[19:]
+            self.page_number = 1
+            self.only_available = False
+            await self.search_product(turn_context, self.search_term, self.page_number, only_available=False)
+        
+        elif message_text.lower() == "next":
+            if self.search_term:
+                self.page_number += 1
+                await turn_context.send_activity(f"Loading page {self.page_number} for: {self.search_term}")
+                await self.search_product(turn_context, self.search_term, self.page_number, only_available=self.only_available)
+            else:
+                await turn_context.send_activity("No active search. Please start a new search.")
+        
+        elif message_text.lower() == "previous":
+            if self.search_term:
+                if self.page_number > 1:
+                    self.page_number -= 1
                     await self.search_product(turn_context, self.search_term, self.page_number, only_available=self.only_available)
                 else:
-                    await turn_context.send_activity("No active search. Please start a new search.")
-            
-            elif message_text.lower() == "previous":
-                if self.search_term:
-                    if self.page_number > 1:
-                        self.page_number -= 1
-                        await self.search_product(turn_context, self.search_term, self.page_number, only_available=self.only_available)
-                    else:
-                        await turn_context.send_activity("You are already on the first page.")
-                else:
-                    await turn_context.send_activity("No active search. Please start a new search.")
-            
+                    await turn_context.send_activity("You are already on the first page.")
             else:
-                logger.debug("Message didn't match any specific commands, treating as generic question")
-                openai_response = await self.handle_generic_question(turn_context, message_text)
-                
-                logger.debug(f"OpenAI response successful: {openai_response}")
-                
-                if not openai_response:
-                    logger.debug("Falling back to default response")
-                    response = "I'm not sure how to respond to that. Here are some things you can try:"
-                    response += "\n- Search for products: 'search for product [product name]'"
-                    response += "\n- Search for available products: 'search for available [product name]'"
-                    response += "\n- Get price and availability: 'price and availability for [part number]'"
-                    response += "\n- Navigate search results: 'next' or 'previous'"
-                    response += "\n- Or you can ask me general questions about computer hardware!"
-                    await turn_context.send_activity(response)
-
-        except Exception as e:
-            logger.error(f"Error in on_message_activity: {str(e)}")
-            await turn_context.send_activity("I'm sorry, but I encountered an error while processing your request. Please try again later.")
+                await turn_context.send_activity("No active search. Please start a new search.")
         
+        else:
+            logger.debug("Message didn't match any specific commands, treating as generic question")
+            # Handle generic questions with OpenAI
+            openai_response = await self.handle_generic_question(turn_context, message_text)
+            
+            logger.debug(f"OpenAI response successful: {openai_response}")
+            
+        # If OpenAI couldn't provide a meaningful response, fall back to the default message
+            if not openai_response:
+                logger.debug("Falling back to default response")
+                response = "I'm not sure how to respond to that. Here are some things you can try:"
+                response += "\n- Search for products: 'search for product [product name]'"
+                response += "\n- Search for available products: 'search for available [product name]'"
+                response += "\n- Get price and availability: 'price and availability for [part number]'"
+                response += "\n- Navigate search results: 'next' or 'previous'"
+                response += "\n- Or you can ask me general questions about computer hardware!"
+                await turn_context.send_activity(response)
+        # Remove this line to avoid printing the user's message
+        # print(f"Sent response: {response}")  # Print to console for debugging
+
     async def search_product(self, turn_context: TurnContext, search_term: str, page_number: int, only_available: bool = False):
         logger.debug(f"Searching for product: {search_term}, page: {page_number}, only available: {only_available}")
         configuration = xi.sdk.resellers.Configuration(
