@@ -189,8 +189,9 @@ class IngramMicroBot(ActivityHandler):
 
         lower_message = message_text.lower()
 
-        if lower_message.startswith("search for ") and not lower_message.startswith("search for product "):
-            # This is a generic search query
+        if (lower_message.startswith("search for ") and 
+            not lower_message.startswith("search for product ") and 
+            not lower_message.startswith("search for available ")):            # This is a generic search query
             search_query = message_text[11:].strip()  # Remove "search for " from the start
             
             # Handle generic questions with OpenAI
