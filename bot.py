@@ -351,12 +351,18 @@ class IngramMicroBot(ActivityHandler):
         except ApiException as e:
             error_message = f"An API error occurred: {str(e)}"
             logger.error(error_message)
-            await turn_context.send_activity(error_message)
+                        
+            # User-friendly message
+            user_message = "I'm sorry, but I couldn't find any information about that product right now. Please try searching for a similar product or check back later."
+            await turn_context.send_activity(user_message)
 
         except Exception as e:
             error_message = f"An unexpected error occurred: {str(e)}"
             logger.error(error_message)
-            await turn_context.send_activity(error_message)
+                    
+            # User-friendly message
+            user_message = "I apologize, but I encountered an issue while searching for that product. Please try again later or contact support if the problem persists."
+            await turn_context.send_activity(user_message)
 
     async def get_price_and_availability(self, turn_context: TurnContext, part_number: str):
         # Convert part number to uppercase
