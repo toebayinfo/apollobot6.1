@@ -158,7 +158,7 @@ class IngramMicroBot(ActivityHandler):
             )
 
             response = self.openai_client.chat.completions.create(
-                model="gpt-4",  # Note: Changed from "gpt-4o" to "gpt-4"
+                model="gpt-4o",
                 messages=[
                     {"role": "system", "content": system_message},
                     {"role": "user", "content": question}
