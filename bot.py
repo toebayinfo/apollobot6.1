@@ -147,7 +147,7 @@ class IngramMicroBot(ActivityHandler):
         return self.access_token
 
 
-    async def handle_generic_question(self, turn_context: TurnContext, question: str) -> bool:
+    async def handle_generic_question(self, turn_context: TurnContext, question: str) -> str:
         logger.debug(f"Attempting to handle generic question: {question}")
         try:
             system_message = (
@@ -158,7 +158,7 @@ class IngramMicroBot(ActivityHandler):
             )
 
             response = self.openai_client.chat.completions.create(
-                model="gpt-4o",
+                model="gpt-4",  # Note: Changed from "gpt-4o" to "gpt-4"
                 messages=[
                     {"role": "system", "content": system_message},
                     {"role": "user", "content": question}
@@ -172,18 +172,29 @@ class IngramMicroBot(ActivityHandler):
             # Check if the response is meaningful
             if "I don't know" in answer.lower() or "I'm not sure" in answer.lower():
                 logger.debug("OpenAI response was not meaningful")
-                return False
+                return ""
             
-            await turn_context.send_activity(answer)
-            return True
+            # Add the reminder about product search
+            reminder = "\n\nRemember: You can search for specific products by typing '**search for product**' followed by the product name."
+            
+            return answer + reminder
+
         except Exception as e:
             logger.error(f"Error calling OpenAI API: {str(e)}")
-            await turn_context.send_activity(f"An error occurred while processing your question: {str(e)}")
-            return False
-
+            return f"An error occurred while processing your question: {str(e)}"
+    
     async def on_message_activity(self, turn_context: TurnContext):
         message_text = turn_context.activity.text
         logger.debug(f"Received message: {message_text}")
+
+        lower_message = message_text.lower()
+
+        if lower_message.startswith("search for ") and not lower_message.startswith("search for product "):
+            # This is a generic search query
+            search_query = message_text[11:].strip()  # Remove "search for " from the start
+            
+            # Handle generic questions with OpenAI
+            openai_response = await self.handle_generic_question(turn_context, search_query)
 
         if message_text.lower().startswith("excel search for "):
             search_term = message_text[17:].strip()
@@ -233,8 +244,10 @@ class IngramMicroBot(ActivityHandler):
             logger.debug(f"OpenAI response successful: {openai_response}")
             
         # If OpenAI couldn't provide a meaningful response, fall back to the default message
-            if not openai_response:
-                logger.debug("Falling back to default response")
+            if openai_response:
+                await turn_context.send_activity(openai_response)
+            else:
+                # If OpenAI couldn't provide a meaningful response, fall back to the default message
                 response = "I'm not sure how to respond to that. Here are some things you can try:"
                 response += "\n- Search for products: 'search for product [product name]'"
                 response += "\n- Search for available products: 'search for available [product name]'"
@@ -242,8 +255,8 @@ class IngramMicroBot(ActivityHandler):
                 response += "\n- Navigate search results: 'next' or 'previous'"
                 response += "\n- Or you can ask me general questions about computer hardware!"
                 await turn_context.send_activity(response)
-        # Remove this line to avoid printing the user's message
-        # print(f"Sent response: {response}")  # Print to console for debugging
+            
+            return  # Exit the method after handling the generic search
 
     async def search_product(self, turn_context: TurnContext, search_term: str, page_number: int, only_available: bool = False):
         logger.debug(f"Searching for product: {search_term}, page: {page_number}, only available: {only_available}")
@@ -301,32 +314,38 @@ class IngramMicroBot(ActivityHandler):
                         if not only_available or (only_available and is_available):
                             filtered_products.append((product, p_and_a_info))
 
-                    if filtered_products:
-                        response = f"Page {page_number} results for '{search_term}':\n\n"
-                        for product, p_and_a_info in filtered_products:
-                            response += f"**Name**: {product.description}  \n"
-                            response += f"**Part Number**: {product.ingram_part_number}  \n"
-                            response += f"**Vendor**: {product.vendor_name}  \n"
-                            response += f"**Category**: {product.category}  \n"
-                            response += f"**Sub-Category**: {product.sub_category}  \n"
-                            response += f"**Product Type**: {product.product_type}  \n"
-                            response += f"**UPC Code**: {product.upc_code}  \n"
-                            response += f"**Availability**: {'Available' if p_and_a_info.availability and p_and_a_info.availability.total_availability > 0 else 'Not Available'}  \n"
-                            if p_and_a_info.availability:
-                                response += f"**Total Availability**: {p_and_a_info.availability.total_availability}  \n"
-                            response += "  \n"
+                        if filtered_products:
+                            response = f"Search results for '**{search_term}**':\n\n"
+                            for product, p_and_a_info in filtered_products:
+                                response += f"**Name**: {product.description}  \n"
+                                response += f"**Part Number**: {product.ingram_part_number}  \n"
+                                response += f"**Vendor**: {product.vendor_name}  \n"
+                                response += f"**Category**: {product.category}  \n"
+                                response += f"**Sub-Category**: {product.sub_category}  \n"
+                                response += f"**Product Type**: {product.product_type}  \n"
+                                response += f"**UPC Code**: {product.upc_code}  \n"
+                                response += f"**Availability**: {'Available' if p_and_a_info.availability and p_and_a_info.availability.total_availability > 0 else 'Not Available'}  \n"
+                                if p_and_a_info.availability:
+                                    response += f"**Total Availability**: {p_and_a_info.availability.total_availability}  \n"
+                                response += "  \n"
 
-                        response += (f"\nPage {page_number}. "
-                                    "To view the next page of results, type 'next'.  \n"
-                                    "To view the previous page of results, type 'previous'.  \n"
-                                    "To see price and availability details for a specific product, type 'price and availability for [part number]'.")
-                    else:
-                        response = f"No products found matching your criteria on page {page_number}."
+                    navigation_message = (
+                        f"\n📄 **Page {page_number}**\n\n"
+                        "Navigation Options:  \n"
+                        "    • Type '**next**' to view the next page of results  \n"
+                        "    • Type '**previous**' to view the previous page of results  \n"
+                        "    • For price and availability details, type '**price and availability for [part number]**'\n\n"
+                        "What would you like to do next?"
+                    )                    
+
+                    response += navigation_message
+                elif api_response.catalog and len(api_response.catalog) > 0:
+                    response = f"No products found matching your criteria on page {page_number}.\n\nWould you like to try a different search term?"
                 else:
-                    response = f"No products found matching your search term on page {page_number}."
+                    response = f"No products found matching your search term '{search_term}'.\n\nPlease try a different search term or ask for help if you need assistance."
 
                 await turn_context.send_activity(response)
-                logger.info(f"Sent search results for '{search_term}'")
+                logger.info(f"Sent search results for '{search_term}' (Page {page_number})")
 
         except ApiException as e:
             error_message = f"An API error occurred: {str(e)}"
@@ -339,6 +358,9 @@ class IngramMicroBot(ActivityHandler):
             await turn_context.send_activity(error_message)
 
     async def get_price_and_availability(self, turn_context: TurnContext, part_number: str):
+        # Convert part number to uppercase
+        part_number = part_number.upper()
+        
         logger.debug(f"Getting price and availability for part number: {part_number}")
         configuration = xi.sdk.resellers.Configuration(
             host="https://api.ingrammicro.com:443/sandbox"
@@ -357,7 +379,7 @@ class IngramMicroBot(ActivityHandler):
                 im_country_code = 'US'
 
                 # Get price and availability
-                products = [PriceAndAvailabilityRequestProductsInner(ingram_part_number=part_number)]  # Use the original part_number here
+                products = [PriceAndAvailabilityRequestProductsInner(ingram_part_number=part_number)]
                 price_and_availability_request = PriceAndAvailabilityRequest(products=products)
 
                 api_response = api_instance.post_priceandavailability(
@@ -442,9 +464,15 @@ class IngramMicroBot(ActivityHandler):
     ):
         for member in members_added:
             if member.id != turn_context.activity.recipient.id:
-                await turn_context.send_activity(
-                    "Hello! I'm Apollobot.  \nI am here to help you search for products in Ingram Micro, and the Aera Procure database, or just reply on generic questions about computer software and hardware.  \n"
-                    "Just type '**search for product**' followed by your search term for Ingram Micro database search,  \nor '**search for available**' followed by your search term for Ingram Micro database available products,  \n"
-                    "'**excel search for**' followed by your search term for Aera Procure file search,  \n"
-                    "or ask me anything!"
+                welcome_message = (
+                    "👋 Hello! I'm Apollobot, your product search assistant.\n\n"
+                    "I can help you with:\n\n"
+                    "1️⃣ Searching products in the Ingram Micro database:  \n"
+                    "• Type '**search for product** [your search term]'  \n"
+                    "• For available products only, type '**search for available** [your search term]'\n\n"
+                    "2️⃣ Searching the Aera Procure database:  \n"
+                    "• Type '**excel search for** [your search term]'\n\n"
+                    "3️⃣ Answering questions about computer software and hardware\n\n"
+                    "Feel free to ask me anything or start your search! How can I assist you today?"
                 )
+                await turn_context.send_activity(welcome_message)
